@@ -190,15 +190,16 @@ int ConnectionSTREAM::ResetStreamBuffers()
 int ConnectionSTREAM::ReadRawStreamData(char* buffer, unsigned length, int epIndex, int timeout_ms)
 {
     const unsigned char ep = 0x81;
-    fpga::StopStreaming(this, epIndex);
+    WriteRegister(0xFFFF, 1 << epIndex);
+    fpga::StopStreaming(this);
 
     ResetStreamBuffers();
     WriteRegister(0x0008, 0x0100 | 0x2);
     WriteRegister(0x0007, 1);
-    fpga::StartStreaming(this, epIndex);
+    fpga::StartStreaming(this);
 
     int totalBytesReceived = ReceiveData(buffer,length, epIndex, timeout_ms);
-    fpga::StopStreaming(this, epIndex);
+    fpga::StopStreaming(this);
     AbortReading(ep);
 
     return totalBytesReceived;
@@ -271,8 +272,11 @@ void ConnectionSTREAM::ReceivePacketsLoop(Streamer* stream)
     {
         if(stream->generateData.load())
         {
-            if(activeTransfers == 0) //stop FPGA when last transfer completes
-                fpga::StopStreaming(this, chipID);
+            if (activeTransfers == 0) //stop FPGA when last transfer completes
+            {
+                WriteRegister(0xFFFF, 1 << chipID);
+                fpga::StopStreaming(this);
+            }
             stream->safeToConfigInterface.notify_all(); //notify that it's safe to change chip config
             const int batchSize = (this->mExpectedSampleRate/chFrames[0].samplesCount)/10;
             IStreamChannel::Metadata meta;
@@ -356,8 +360,11 @@ void ConnectionSTREAM::ReceivePacketsLoop(Streamer* stream)
         // Re-submit this request to keep the queue full
         if(not stream->generateData.load())
         {
-            if(activeTransfers == 0) //reactivate FPGA and USB transfers
-                fpga::StartStreaming(this, chipID);
+            if (activeTransfers == 0) //reactivate FPGA and USB transfers
+            {
+                WriteRegister(0xFFFF, 1 << chipID);
+                fpga::StartStreaming(this);
+            }
             for(int i=0; i<buffersCount-activeTransfers; ++i)
             {
                 handles[bi] = this->BeginDataReading(&buffers[bi*bufferSize], bufferSize, ep);

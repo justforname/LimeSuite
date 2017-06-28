@@ -191,20 +191,20 @@ int Connection_uLimeSDR::UpdateExternalDataRate(const size_t channel, const doub
 int Connection_uLimeSDR::ReadRawStreamData(char* buffer, unsigned length, int epIndex, int timeout_ms)
 {
     int totalBytesReceived = 0;
-    fpga::StopStreaming(this, epIndex);
+    fpga::StopStreaming(this);
 
     //ResetStreamBuffers();
     WriteRegister(0x0008, 0x0100 | 0x2);
     WriteRegister(0x0007, 1);
 
-    fpga::StartStreaming(this, epIndex);
+    fpga::StartStreaming(this);
 
     int handle = BeginDataReading(buffer, length);
     if (WaitForReading(handle, timeout_ms))
         totalBytesReceived = FinishDataReading(buffer, length, handle);
 
     AbortReading();
-    fpga::StopStreaming(this, epIndex);
+    fpga::StopStreaming(this);
 
     return totalBytesReceived;
 }
@@ -308,7 +308,7 @@ void Connection_uLimeSDR::ReceivePacketsLoop(Connection_uLimeSDR::Streamer* stre
         if(stream->generateData.load())
         {
             if(activeTransfers == 0) //stop FPGA when last transfer completes
-                fpga::StopStreaming(this, chipID);
+                fpga::StopStreaming(this);
             stream->safeToConfigInterface.notify_all(); //notify that it's safe to change chip config
             const int batchSize = (this->mExpectedSampleRate/chFrames[0].samplesCount)/10;
             IStreamChannel::Metadata meta;
@@ -390,7 +390,7 @@ void Connection_uLimeSDR::ReceivePacketsLoop(Connection_uLimeSDR::Streamer* stre
         if(not stream->generateData.load())
         {
             if(activeTransfers == 0) //reactivate FPGA and USB transfers
-                fpga::StartStreaming(this, chipID);
+                fpga::StartStreaming(this);
             for(int i=0; i<buffersCount-activeTransfers; ++i)
             {
                 handles[bi] = this->BeginDataReading(&buffers[bi*bufferSize], bufferSize);

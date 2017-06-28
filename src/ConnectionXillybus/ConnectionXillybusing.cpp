@@ -179,14 +179,14 @@ int ConnectionXillybus::UpdateExternalDataRate(const size_t channel, const doubl
 
 int ConnectionXillybus::ReadRawStreamData(char* buffer, unsigned length, int epIndex, int timeout_ms)
 {
-    fpga::StopStreaming(this, epIndex);
-
+    WriteRegister(0xFFFF, 1 << epIndex);
+    fpga::StopStreaming(this);
     ResetStreamBuffers();
     WriteRegister(0x0008, 0x0100 | 0x2);
     WriteRegister(0x0007, 1);
-    fpga::StartStreaming(this, epIndex);
+    fpga::StartStreaming(this);
     int totalBytesReceived = ReceiveData(buffer, length, epIndex, timeout_ms);
-    fpga::StopStreaming(this, epIndex);
+    fpga::StopStreaming(this);
     AbortReading(epIndex);
     return totalBytesReceived;
 }
@@ -253,7 +253,8 @@ void ConnectionXillybus::ReceivePacketsLoop(Streamer* stream)
         if(stream->generateData.load())
         {
             generate_started = true;
-            fpga::StopStreaming(this, epIndex);
+            WriteRegister(0xFFFF, 1 << epIndex);
+            fpga::StopStreaming(this);
             stream->safeToConfigInterface.notify_all(); //notify that it's safe to change chip config
             const int batchSize = (this->mExpectedSampleRate/chFrames[0].samplesCount)/10;
             IStreamChannel::Metadata meta;
@@ -334,8 +335,11 @@ void ConnectionXillybus::ReceivePacketsLoop(Streamer* stream)
         }
         // Re-submit this request to keep the queue full
         if ((generate_started) && (!stream->generateData.load()))
-            fpga::StartStreaming(this, epIndex);
-
+        {
+            WriteRegister(0xFFFF, 1 << epIndex);
+            fpga::StartStreaming(this);
+            generate_started = false;
+        }
         t2 = chrono::high_resolution_clock::now();
         auto timePeriod = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
         if (timePeriod >= 1000)
